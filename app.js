@@ -16,10 +16,9 @@ app.use(session({
 let votes = { tea: 0, coffee: 0, milk: 0 };
 let voters = [];
 let results = []; // Array to store result values
+const fs = require('fs'); // Require the fs module for file operations
 
-
-// Admin page to view results
-// Admin page to view results
+// Admin page
 app.get('/admin', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -56,30 +55,32 @@ app.get('/admin', (req, res) => {
         </tr>
       </tbody>
     </table>
-    
     <h2 class="text-xl font-bold mb-4 text-gray-800">Voter Details</h2>
-    <table class="w-full text-left border-collapse">
-      <thead>
-        <tr>
-          <th class="py-2 px-4 bg-green-100 text-green-700 font-semibold">Name</th>
-          <th class="py-2 px-4 bg-green-100 text-green-700 font-semibold">Vote</th>
-          <th class="py-2 px-4 bg-green-100 text-green-700 font-semibold rounded-tr-lg">IP Address</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${voters.map(voter => `
-        <tr class="border-t">
-          <td class="py-2 px-4">${voter.name}</td>
-          <td class="py-2 px-4">${voter.vote}</td>
-          <td class="py-2 px-4">${voter.ip}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr>
+              <th class="py-2 px-4 bg-green-100 text-green-700 font-semibold">Name</th>
+              <th class="py-2 px-4 bg-green-100 text-green-700 font-semibold">Vote</th>
+              <th class="py-2 px-4 bg-green-100 text-green-700 font-semibold rounded-tr-lg">IP Address</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${voters.map(voter => `
+            <tr class="border-t">
+              <td class="py-2 px-4">${voter.name}</td>
+              <td class="py-2 px-4">${voter.vote}</td>
+              <td class="py-2 px-4">${voter.ip}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
     
     <div class="mt-4">
       <button onclick="window.location.reload();" class="bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600">Refresh</button>
       <form action="/reset" method="post" class="inline">
         <button type="submit" class="ml-2 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600">Reset Votes</button>
+      </form>
+      <form action="/store" method="post" class="inline">
+        <button type="submit" class="ml-2 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600">Store Data</button>
       </form>
     </div>
   </div>
@@ -96,11 +97,237 @@ app.get('/admin', (req, res) => {
 // Reset votes route
 app.post('/reset', (req, res) => {
   votes = { tea: 0, coffee: 0, milk: 0 };
-  voters = [];
-  results = []; // Reset results array
   res.redirect('/admin');
 });
 
+// Store data route
+app.post('/store', (req, res) => {
+  const currentTime = new Date().toISOString();
+  const data = { time: currentTime, votes };
+
+  fs.appendFile('data.json', JSON.stringify(data, null, 2) + ',\n', (err) => {
+    if (err) {
+      console.error('Error writing to data.json:', err);
+      return res.status(500).send('Error storing data');
+    }
+    res.redirect('/admin');
+  });
+});
+
+const bodyParser = require('body-parser');
+
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Data page with Delete and Edit options
+app.get('/data', (req, res) => {
+  fs.readFile('data.json', 'utf8', (err, data) => {
+    if (err) {
+      console.error('Error reading data.json:', err);
+      return res.status(500).send('Error reading data');
+    }
+
+    let storedData;
+    try {
+      storedData = JSON.parse('[' + data.slice(0, -2) + ']'); // Remove last comma and wrap in brackets
+    } catch (parseError) {
+      console.error('Error parsing JSON data:', parseError);
+      return res.status(500).send('Error parsing data');
+    }
+
+    res.send(`
+      <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Table - Poll Results</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+  <div class="bg-white p-8 rounded-lg shadow-lg max-w-4xl w-full">
+    <h1 class="text-2xl font-bold mb-6 text-gray-800">Stored Poll Results</h1>
+    
+    <table class="w-full text-left border-collapse">
+      <thead>
+        <tr>
+          <th class="py-2 px-4 bg-green-100 text-green-700 font-semibold">Time</th>
+          <th class="py-2 px-4 bg-green-100 text-green-700 font-semibold">Tea</th>
+          <th class="py-2 px-4 bg-green-100 text-green-700 font-semibold">Coffee</th>
+          <th class="py-2 px-4 bg-green-100 text-green-700 font-semibold">Milk</th>
+          <th class="py-2 px-4 bg-green-100 text-green-700 font-semibold">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${storedData.map((entry, index) => `
+        <tr class="border-t">
+          <td class="py-2 px-4">${new Date(entry.time).toLocaleString()}</td>
+          <td class="py-2 px-4">${entry.votes.tea}</td>
+          <td class="py-2 px-4">${entry.votes.coffee}</td>
+          <td class="py-2 px-4">${entry.votes.milk}</td>
+          <td class="py-2 px-4">
+            <form action="/delete/${index}" method="post" class="inline">
+              <button type="submit" class="bg-red-500 text-white py-1 px-3 rounded-lg hover:bg-red-600">Delete</button>
+            </form>
+            <button onclick="editEntry(${index}, '${entry.votes.tea}', '${entry.votes.coffee}', '${entry.votes.milk}')" class="bg-yellow-500 text-white py-1 px-3 rounded-lg hover:bg-yellow-600 ml-2">Edit</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+
+    <div class="mt-4">
+      <a href="/admin" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600">Back to Admin</a>
+      <button onclick="showModal()" class="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 ml-2">Add New</button>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal" class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 hidden">
+    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+      <h2 class="text-xl font-bold mb-4">Add New Poll Entry</h2>
+      <form id="addForm" action="/add" method="post">
+  <div class="mb-4">
+    <label class="block text-gray-700">Tea Votes</label>
+    <input type="number" name="tea" class="w-full border border-black rounded-lg p-2 mt-1 focus:border-black" required>
+  </div>
+  <div class="mb-4">
+    <label class="block text-gray-700">Coffee Votes</label>
+    <input type="number" name="coffee" class="w-full border border-black rounded-lg p-2 mt-1 focus:border-black" required>
+  </div>
+  <div class="mb-4">
+    <label class="block text-gray-700">Milk Votes</label>
+    <input type="number" name="milk" class="w-full border border-black rounded-lg p-2 mt-1 focus:border-black" required>
+  </div>
+  <div class="flex justify-end">
+    <button type="button" onclick="hideModal()" class="bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 mr-2">Cancel</button>
+    <button type="submit" class="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600">Add</button>
+  </div>
+</form>
+
+    </div>
+  </div>
+
+  <script>
+    function editEntry(index, tea, coffee, milk) {
+      const newTea = prompt("Enter new Tea votes:", tea);
+      const newCoffee = prompt("Enter new Coffee votes:", coffee);
+      const newMilk = prompt("Enter new Milk votes:", milk);
+      
+      if (newTea !== null && newCoffee !== null && newMilk !== null) {
+        const form = document.createElement('form');
+        form.method = 'post';
+        form.action = '/edit/' + index;
+        form.innerHTML = '<input type="hidden" name="tea" value="' + newTea + '"><input type="hidden" name="coffee" value="' + newCoffee + '"><input type="hidden" name="milk" value="' + newMilk + '">';
+        document.body.appendChild(form);
+        form.submit();
+      }
+    }
+
+    function showModal() {
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function hideModal() {
+      document.getElementById('modal').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
+    `);
+  });
+});
+
+// Handle delete
+app.post('/delete/:index', (req, res) => {
+  const index = parseInt(req.params.index, 10);
+
+  fs.readFile('data.json', 'utf8', (err, data) => {
+    if (err) {
+      console.error('Error reading data.json:', err);
+      return res.status(500).send('Error reading data');
+    }
+
+    let storedData = JSON.parse('[' + data.slice(0, -2) + ']'); // Remove last comma and wrap in brackets
+    storedData.splice(index, 1);
+
+    const updatedData = storedData.map(entry => JSON.stringify(entry) + ',\n').join('');
+    fs.writeFile('data.json', updatedData, (writeErr) => {
+      if (writeErr) {
+        console.error('Error writing to data.json:', writeErr);
+        return res.status(500).send('Error writing data');
+      }
+
+      res.redirect('/data');
+    });
+  });
+});
+
+// Handle add
+app.post('/add', (req, res) => {
+  const { tea, coffee, milk } = req.body;
+  const newEntry = {
+    time: new Date().toISOString(),
+    votes: {
+      tea: parseInt(tea, 10),
+      coffee: parseInt(coffee, 10),
+      milk: parseInt(milk, 10)
+    }
+  };
+
+  fs.readFile('data.json', 'utf8', (err, data) => {
+    if (err) {
+      console.error('Error reading data.json:', err);
+      return res.status(500).send('Error reading data');
+    }
+
+    let storedData;
+    try {
+      storedData = JSON.parse('[' + data.slice(0, -2) + ']'); // Remove last comma and wrap in brackets
+    } catch (parseError) {
+      console.error('Error parsing JSON data:', parseError);
+      return res.status(500).send('Error parsing data');
+    }
+
+    storedData.push(newEntry);
+
+    const updatedData = storedData.map(entry => JSON.stringify(entry) + ',\n').join('');
+    fs.writeFile('data.json', updatedData, (writeErr) => {
+      if (writeErr) {
+        console.error('Error writing to data.json:', writeErr);
+        return res.status(500).send('Error writing data');
+      }
+
+      res.redirect('/data');
+    });
+  });
+});
+
+// Handle edit
+app.post('/edit/:index', (req, res) => {
+  const index = parseInt(req.params.index, 10);
+  const { tea, coffee, milk } = req.body;
+
+  fs.readFile('data.json', 'utf8', (err, data) => {
+    if (err) {
+      console.error('Error reading data.json:', err);
+      return res.status(500).send('Error reading data');
+    }
+
+    let storedData = JSON.parse('[' + data.slice(0, -2) + ']'); // Remove last comma and wrap in brackets
+    storedData[index].votes.tea = parseInt(tea, 10);
+    storedData[index].votes.coffee = parseInt(coffee, 10);
+    storedData[index].votes.milk = parseInt(milk, 10);
+
+    const updatedData = storedData.map(entry => JSON.stringify(entry) + ',\n').join('');
+    fs.writeFile('data.json', updatedData, (writeErr) => {
+      if (writeErr) {
+        console.error('Error writing to data.json:', writeErr);
+        return res.status(500).send('Error writing data');
+      }
+
+      res.redirect('/data');
+    });
+  });
+});
 
 // Logout route
 app.get('/logout', (req, res) => {
@@ -157,70 +384,64 @@ app.get('/result', (req, res) => {
 // Poll page
 app.get('/', (req, res) => {
   res.send(`
-    
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Tea or Coffee Poll</title>
+      <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+      <style>
+        body {
+          background-image: url('https://png.pngtree.com/background/20210710/original/pngtree-coffee-biscuit-western-afternoon-tea-literary-banner-picture-image_1024577.jpg');
+          background-size: cover;
+          background-position: center;
+        }
+      </style>
+    </head>
+    <body class="bg-gray-100 min-h-screen flex items-center justify-center">
+      <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full text-center">
+        <h1 class="text-2xl font-bold mb-4">Tea or Coffee?</h1>
+        <form id="pollForm" action="/vote" method="post" class="text-left">
+          <div class="mb-4">
+            <label for="name" class="block text-gray-700">Name</label>
+            <input type="text" id="name" name="name" class="w-full px-3 py-2 border border-gray-300 rounded-lg" 
+                   pattern="[^0-9]+" title="Name should not contain numbers." required>
+          </div>
+          <div class="mb-4">
+            <input type="radio" id="tea" name="vote" value="tea">
+            <label for="tea" class="ml-2">Tea</label>
+          </div>
+          <div class="mb-4">
+            <input type="radio" id="coffee" name="vote" value="coffee">
+            <label for="coffee" class="ml-2">Coffee</label>
+          </div>
+          <div class="mb-4">
+            <input type="radio" id="milk" name="vote" value="milk">
+            <label for="milk" class="ml-2">Milk</label>
+          </div>
+          <div class="flex justify-center mt-4">
+            <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600">Vote</button>
+          </div>
+        </form>
+      </div>
 
-   <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tea or Coffee Poll</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <style>
-    body {
-      background-image: url('https://img.freepik.com/free-photo/top-view-cup-tea-inside-plate-cup-dark-background-tea-drink-color-photo-sweet_140725-55772.jpg?w=1380&t=st=1724751652~exp=1724752252~hmac=22eab7681d422bc5fa5f44f57b0af8393983def6b8b40ad91560c31ff152c2cf');
-      background-size: cover;
-      background-position: center;
-    }
-  </style>
-</head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center">
-  <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full text-center">
-    <h1 class="text-2xl font-bold mb-4">Tea or Coffee?</h1>
-    <form id="pollForm" action="/vote" method="post" class="text-left">
-      <div class="mb-4">
-        <label for="name" class="block text-gray-700">Name</label>
-        <input type="text" id="name" name="name" class="w-full px-3 py-2 border border-gray-300 rounded-lg" 
-               pattern="[^0-9]+" title="Name should not contain numbers." required>
-      </div>
-      <div class="mb-4">
-        <input type="radio" id="tea" name="vote" value="tea">
-        <label for="tea" class="ml-2">Tea</label>
-      </div>
-      <div class="mb-4">
-        <input type="radio" id="coffee" name="vote" value="coffee">
-        <label for="coffee" class="ml-2">Coffee</label>
-      </div>
-      <div class="mb-4">
-        <input type="radio" id="milk" name="vote" value="milk">
-        <label for="milk" class="ml-2">Milk</label>
-      </div>
-      <div class="flex justify-center mt-4">
-        <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600">Vote</button>
-      </div>
-    </form>
-  </div>
-
-  <script>
-    document.getElementById('pollForm').addEventListener('submit', function(event) {
-      const tea = document.getElementById('tea').checked;
-      const coffee = document.getElementById('coffee').checked;
-      const milk = document.getElementById('milk').checked;
-      if (!tea && !coffee && !milk) {
-        event.preventDefault(); // Prevent form submission
-        alert('Please select either Tea, Coffee, or Milk.');
-      }
-    });
-  </script>
-</body>
-</html>
-
+      <script>
+        document.getElementById('pollForm').addEventListener('submit', function(event) {
+          const tea = document.getElementById('tea').checked;
+          const coffee = document.getElementById('coffee').checked;
+          const milk = document.getElementById('milk').checked;
+          if (!tea && !coffee && !milk) {
+            event.preventDefault(); // Prevent form submission
+            alert('Please select either Tea, Coffee, or Milk.');
+          }
+        });
+      </script>
+    </body>
+    </html>
   `);
 });
 
-// Handle voting
-// Handle voting
-// Handle voting
 app.post('/vote', (req, res) => {
   const vote = req.body.vote;
   const name = req.body.name;
@@ -234,7 +455,18 @@ app.post('/vote', (req, res) => {
   // Store voter information
   voters.push({ name, vote, ip });
 
-  // Respond with a success message including vote counts
+  // Store result in session and redirect to thank you page
+  req.session.result = { name, vote, votes };
+  res.redirect('/thank-you');
+});
+
+app.get('/thank-you', (req, res) => {
+  const result = req.session.result;
+
+  if (!result) {
+    return res.redirect('/');
+  }
+
   res.send(`
     <!DOCTYPE html>
     <html lang="en">
@@ -246,20 +478,22 @@ app.post('/vote', (req, res) => {
     </head>
     <body class="bg-gray-100 flex items-center justify-center min-h-screen">
       <div class="bg-white shadow-lg rounded-lg p-8 text-center max-w-md w-full">
-        <h1 class="text-2xl font-semibold mb-4 text-gray-800">Thanks for your input!,<br> <span class="font-extrabold">${name}!</span></h1>
-        <p class="text-gray-600 mb-6">You selected<strong>${vote.charAt(0).toUpperCase() + vote.slice(1)}</strong>.</p>
+        <h1 class="text-2xl font-semibold mb-4 text-gray-800">Thanks for your input!,<br> <span class="font-extrabold">${result.name}!</span></h1>
+        <p class="text-gray-600 mb-6">You selected<strong>${result.vote.charAt(0).toUpperCase() + result.vote.slice(1)}</strong>.</p>
         <div class="bg-gray-100 p-4 rounded-lg mb-6">
           <h2 class="text-xl font-medium text-gray-700 mb-2">Total Count</h2>
-          <p class="text-gray-800">Tea: <span class="font-semibold">${votes.tea}</span></p>
-          <p class="text-gray-800">Coffee: <span class="font-semibold">${votes.coffee}</span></p>
-          <p class="text-gray-800">Milk: <span class="font-semibold">${votes.milk}</span></p>
+          <p class="text-gray-800">Tea: <span class="font-semibold">${result.votes.tea}</span></p>
+          <p class="text-gray-800">Coffee: <span class="font-semibold">${result.votes.coffee}</span></p>
+          <p class="text-gray-800">Milk: <span class="font-semibold">${result.votes.milk}</span></p>
         </div>
-        <a href="/admin" class="inline-block bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-200">Admin</a>
+        <a href="/" class="inline-block bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-200">Back to Poll</a>
       </div>
     </body>
     </html>
   `);
 
+  // Clear the session after displaying the result
+  req.session.result = null;
 });
 
 
