@@ -19,6 +19,7 @@ let results = []; // Array to store result values
 
 
 // Admin page to view results
+// Admin page to view results
 app.get('/admin', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -74,18 +75,32 @@ app.get('/admin', (req, res) => {
         </tr>`).join('')}
       </tbody>
     </table>
-        <button onclick="window.location.reload();" class="mt-4 bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600">Refresh</button>
+    
+    <div class="mt-4">
+      <button onclick="window.location.reload();" class="bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600">Refresh</button>
+      <form action="/reset" method="post" class="inline">
+        <button type="submit" class="ml-2 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600">Reset Votes</button>
+      </form>
+    </div>
   </div>
   <script>
-  setTimeout(function(){
-     location.reload();
-  }, 1000); // 2000 milliseconds = 2 seconds
-</script>
+    setTimeout(function(){
+       location.reload();
+    }, 1000); // 1000 milliseconds = 1 second
+  </script>
 </body>
 </html>
-
   `);
 });
+
+// Reset votes route
+app.post('/reset', (req, res) => {
+  votes = { tea: 0, coffee: 0, milk: 0 };
+  voters = [];
+  results = []; // Reset results array
+  res.redirect('/admin');
+});
+
 
 // Logout route
 app.get('/logout', (req, res) => {
