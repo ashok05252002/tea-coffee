@@ -97,6 +97,7 @@ app.get('/admin', (req, res) => {
 // Reset votes route
 app.post('/reset', (req, res) => {
   votes = { tea: 0, coffee: 0, milk: 0 };
+  voters = [];
   res.redirect('/admin');
 });
 
@@ -168,7 +169,7 @@ app.get('/data', (req, res) => {
             <form action="/delete/${index}" method="post" class="inline">
               <button type="submit" class="bg-red-500 text-white py-1 px-3 rounded-lg hover:bg-red-600">Delete</button>
             </form>
-            <button onclick="editEntry(${index}, '${entry.votes.tea}', '${entry.votes.coffee}', '${entry.votes.milk}')" class="bg-yellow-500 text-white py-1 px-3 rounded-lg hover:bg-yellow-600 ml-2">Edit</button>
+            <button onclick="showEditModal(${index}, '${entry.votes.tea}', '${entry.votes.coffee}', '${entry.votes.milk}')" class="bg-yellow-500 text-white py-1 px-3 rounded-lg hover:bg-yellow-600 ml-2">Edit</button>
           </td>
         </tr>`).join('')}
       </tbody>
@@ -176,58 +177,91 @@ app.get('/data', (req, res) => {
 
     <div class="mt-4">
       <a href="/admin" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600">Back to Admin</a>
-      <button onclick="showModal()" class="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 ml-2">Add New</button>
+      <button onclick="showAddModal()" class="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 ml-2">Add New</button>
     </div>
   </div>
 
-  <!-- Modal -->
-  <div id="modal" class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 hidden">
+  <!-- Add Modal -->
+  <div id="addModal" class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 hidden">
     <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
       <h2 class="text-xl font-bold mb-4">Add New Poll Entry</h2>
-      <form id="addForm" action="/add" method="post">
-  <div class="mb-4">
-    <label class="block text-gray-700">Tea Votes</label>
-    <input type="number" name="tea" class="w-full border border-black rounded-lg p-2 mt-1 focus:border-black" required>
+      <form id="addForm" action="/add" method="post" onsubmit="return validateForm()">
+        <div class="mb-4">
+          <label class="block text-gray-700">Tea Votes</label>
+          <input type="number" name="tea" class="w-full border border-black rounded-lg p-2 mt-1 focus:border-black" min="0" max="99" required>
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-700">Coffee Votes</label>
+          <input type="number" name="coffee" class="w-full border border-black rounded-lg p-2 mt-1 focus:border-black" min="0" max="99" required>
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-700">Milk Votes</label>
+          <input type="number" name="milk" class="w-full border border-black rounded-lg p-2 mt-1 focus:border-black" min="0" max="99" required>
+        </div>
+        <div class="flex justify-end">
+          <button type="button" onclick="hideAddModal()" class="bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 mr-2">Cancel</button>
+          <button type="submit" class="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600">Add</button>
+        </div>
+      </form>
+    </div>
   </div>
-  <div class="mb-4">
-    <label class="block text-gray-700">Coffee Votes</label>
-    <input type="number" name="coffee" class="w-full border border-black rounded-lg p-2 mt-1 focus:border-black" required>
-  </div>
-  <div class="mb-4">
-    <label class="block text-gray-700">Milk Votes</label>
-    <input type="number" name="milk" class="w-full border border-black rounded-lg p-2 mt-1 focus:border-black" required>
-  </div>
-  <div class="flex justify-end">
-    <button type="button" onclick="hideModal()" class="bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 mr-2">Cancel</button>
-    <button type="submit" class="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600">Add</button>
-  </div>
-</form>
 
+  <!-- Edit Modal -->
+  <div id="editModal" class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 hidden">
+    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+      <h2 class="text-xl font-bold mb-4">Edit Poll Entry</h2>
+      <form id="editForm" action="" method="post" onsubmit="return validateForm()">
+        <div class="mb-4">
+          <label class="block text-gray-700">Tea Votes</label>
+          <input type="number" id="editTea" name="tea" class="w-full border border-black rounded-lg p-2 mt-1 focus:border-black" min="0" max="99" required>
+               </div>
+        <div class="mb-4">
+          <label class="block text-gray-700">Coffee Votes</label>
+          <input type="number" id="editCoffee" name="coffee" class="w-full border border-black rounded-lg p-2 mt-1 focus:border-black" min="0" max="99" required>
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-700">Milk Votes</label>
+          <input type="number" id="editMilk" name="milk" class="w-full border border-black rounded-lg p-2 mt-1 focus:border-black" min="0" max="99" required>
+        </div>
+        <div class="flex justify-end">
+          <button type="button" onclick="hideEditModal()" class="bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 mr-2">Cancel</button>
+          <button type="submit" class="bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600">Save</button>
+        </div>
+      </form>
     </div>
   </div>
 
   <script>
-    function editEntry(index, tea, coffee, milk) {
-      const newTea = prompt("Enter new Tea votes:", tea);
-      const newCoffee = prompt("Enter new Coffee votes:", coffee);
-      const newMilk = prompt("Enter new Milk votes:", milk);
+    function validateForm() {
+      const tea = document.querySelector('input[name="tea"]').value;
+      const coffee = document.querySelector('input[name="coffee"]').value;
+      const milk = document.querySelector('input[name="milk"]').value;
       
-      if (newTea !== null && newCoffee !== null && newMilk !== null) {
-        const form = document.createElement('form');
-        form.method = 'post';
-        form.action = '/edit/' + index;
-        form.innerHTML = '<input type="hidden" name="tea" value="' + newTea + '"><input type="hidden" name="coffee" value="' + newCoffee + '"><input type="hidden" name="milk" value="' + newMilk + '">';
-        document.body.appendChild(form);
-        form.submit();
+      if (tea > 99 || coffee > 99 || milk > 99) {
+        alert('Votes cannot exceed 99.');
+        return false;
       }
+      return true;
     }
 
-    function showModal() {
-      document.getElementById('modal').classList.remove('hidden');
+    function showAddModal() {
+      document.getElementById('addModal').classList.remove('hidden');
     }
 
-    function hideModal() {
-      document.getElementById('modal').classList.add('hidden');
+    function hideAddModal() {
+      document.getElementById('addModal').classList.add('hidden');
+    }
+
+    function showEditModal(index, tea, coffee, milk) {
+      document.getElementById('editTea').value = tea;
+      document.getElementById('editCoffee').value = coffee;
+      document.getElementById('editMilk').value = milk;
+      document.getElementById('editForm').action = '/edit/' + index;
+      document.getElementById('editModal').classList.remove('hidden');
+    }
+
+    function hideEditModal() {
+      document.getElementById('editModal').classList.add('hidden');
     }
   </script>
 </body>
@@ -384,61 +418,63 @@ app.get('/result', (req, res) => {
 // Poll page
 app.get('/', (req, res) => {
   res.send(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Tea or Coffee Poll</title>
-      <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-      <style>
-        body {
-          background-image: url('https://png.pngtree.com/background/20210710/original/pngtree-coffee-biscuit-western-afternoon-tea-literary-banner-picture-image_1024577.jpg');
-          background-size: cover;
-          background-position: center;
-        }
-      </style>
-    </head>
-    <body class="bg-gray-100 min-h-screen flex items-center justify-center">
-      <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full text-center">
-        <h1 class="text-2xl font-bold mb-4">Tea or Coffee?</h1>
-        <form id="pollForm" action="/vote" method="post" class="text-left">
-          <div class="mb-4">
-            <label for="name" class="block text-gray-700">Name</label>
-            <input type="text" id="name" name="name" class="w-full px-3 py-2 border border-gray-300 rounded-lg" 
-                   pattern="[^0-9]+" title="Name should not contain numbers." required>
-          </div>
-          <div class="mb-4">
-            <input type="radio" id="tea" name="vote" value="tea">
-            <label for="tea" class="ml-2">Tea</label>
-          </div>
-          <div class="mb-4">
-            <input type="radio" id="coffee" name="vote" value="coffee">
-            <label for="coffee" class="ml-2">Coffee</label>
-          </div>
-          <div class="mb-4">
-            <input type="radio" id="milk" name="vote" value="milk">
-            <label for="milk" class="ml-2">Milk</label>
-          </div>
-          <div class="flex justify-center mt-4">
-            <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600">Vote</button>
-          </div>
-        </form>
+  <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tea or Coffee Poll</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-image: url('https://png.pngtree.com/background/20210710/original/pngtree-coffee-biscuit-western-afternoon-tea-literary-banner-picture-image_1024577.jpg');
+      background-size: cover;
+      background-position: center;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full text-center">
+    <h1 class="text-2xl font-bold mb-4">Tea or Coffee?</h1>
+    <form id="pollForm" action="/vote" method="post" class="text-left">
+      <div class="mb-4">
+        <label for="name" class="block text-gray-700">Name</label>
+        <input type="text" id="name" name="name" class="w-full px-3 py-2 border border-gray-300 rounded-lg" 
+               pattern="^[A-Za-z ]{3,20}$" title="Name should contain 3 to 20 letters, including spaces, without any numbers or special characters." 
+               maxlength="20" required>
       </div>
+      <div class="mb-4">
+        <input type="radio" id="tea" name="vote" value="tea">
+        <label for="tea" class="ml-2">Tea</label>
+      </div>
+      <div class="mb-4">
+        <input type="radio" id="coffee" name="vote" value="coffee">
+        <label for="coffee" class="ml-2">Coffee</label>
+      </div>
+      <div class="mb-4">
+        <input type="radio" id="milk" name="vote" value="milk">
+        <label for="milk" class="ml-2">Milk</label>
+      </div>
+      <div class="flex justify-center mt-4">
+<form action="/reset" method="post">
+    <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-red-600">Vote</button>
+  </form>      </div>
+    </form>
+  </div>
 
-      <script>
-        document.getElementById('pollForm').addEventListener('submit', function(event) {
-          const tea = document.getElementById('tea').checked;
-          const coffee = document.getElementById('coffee').checked;
-          const milk = document.getElementById('milk').checked;
-          if (!tea && !coffee && !milk) {
-            event.preventDefault(); // Prevent form submission
-            alert('Please select either Tea, Coffee, or Milk.');
-          }
-        });
-      </script>
-    </body>
-    </html>
+  <script>
+    document.getElementById('pollForm').addEventListener('submit', function(event) {
+      const tea = document.getElementById('tea').checked;
+      const coffee = document.getElementById('coffee').checked;
+      const milk = document.getElementById('milk').checked;
+      if (!tea && !coffee && !milk) {
+        event.preventDefault(); // Prevent form submission
+        alert('Please select either Tea, Coffee, or Milk.');
+      }
+    });
+  </script>
+</body>
+</html>
   `);
 });
 
@@ -479,7 +515,7 @@ app.get('/thank-you', (req, res) => {
     <body class="bg-gray-100 flex items-center justify-center min-h-screen">
       <div class="bg-white shadow-lg rounded-lg p-8 text-center max-w-md w-full">
         <h1 class="text-2xl font-semibold mb-4 text-gray-800">Thanks for your input!,<br> <span class="font-extrabold">${result.name}!</span></h1>
-        <p class="text-gray-600 mb-6">You selected<strong>${result.vote.charAt(0).toUpperCase() + result.vote.slice(1)}</strong>.</p>
+        <p class="text-gray-600 mb-6">You selected <strong>${result.vote.charAt(0).toUpperCase() + result.vote.slice(1)}</strong>.</p>
         <div class="bg-gray-100 p-4 rounded-lg mb-6">
           <h2 class="text-xl font-medium text-gray-700 mb-2">Total Count</h2>
           <p class="text-gray-800">Tea: <span class="font-semibold">${result.votes.tea}</span></p>
